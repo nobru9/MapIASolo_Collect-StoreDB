@@ -1,54 +1,49 @@
 using System.Net.Http;
-using System.Text.Json;
-using Amazon.Runtime;
+using System.Text;
+using Newtonsoft.Json.Linq;
 using SoilBot.Core.Models;
 
 namespace SoilBot.Core.Services
 {
-    
     public class SoilGridsService
     {
-        private readonly HttpClient _http = new HttpClient();
+        private readonly HttpClient _http = new();
 
         public async Task<SoilSample?> GetSampleAsync(double lat, double lon)
         {
-            string url = $"https://rest.isric.org/soilgrids/v2.0/properties/query?lon={lon}&lat={lat}&property=phh2o,clay,sand,ocd";
+            var url = $"https://rest.soilgrids.org/soilgrids/v2.0/properties/query?lat={lat}&lon={lon}&property=phh2o&depth=0-5cm";
 
-            var response = await _http.GetAsync(url);
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                Console.WriteLine($" Falha ao consultar SoilGrids: {response.StatusCode}");
-                return null;
-            }
+                var response = await _http.GetAsync(url);
 
-            var json = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(json);
-
-            var layers = doc.RootElement.GetProperty("properties").GetProperty("layers");
-
-            float GetValue (string name)
-            {
-                try
+                if (!response.IsSuccessStatusCode)
                 {
-                    var layer = layers.EnumerateArray().FirstOrDefault(l => l.GetProperty("name").GetString() == name);
-                    var firstDepth = layer.GetProperty("depths")[0];
-                    return firstDepth.GetProperty("values").GetProperty("mean").GetSingle();
+                    Console.WriteLine($"Falha ao consultar SoilGrids: {response.StatusCode}");
+                    return null;
                 }
 
-                catch { return 0f; }
+                var json = await response.Content.ReadAsStringAsync();
+                var root = JObject.Parse(json);
+
+                double? ph = root["properties"]?["phh2o"]?["values"]?.First?["value"]?.Value<double>();
+
+                if (ph == null)
+                    return null;
+
+                return new SoilSample
+                {
+                    Latitude = lat,
+                    Longitude = lon,
+                    pH = ph.Value,
+                    OrganicCarbon = 0 // SoilGrids não retorna OC nesse endpoint
+                };
             }
-
-            return new SoilSample
+            catch (Exception ex)
             {
-                Latitude = lat,
-                Longiitude = lon,
-                pH = GetValue("phh2o"),
-                Clay = GetValue("clay"),
-                Sand = GetValue("sand"),
-                OrganicCarbon = GetValue("ocd"),
-                Source = "SoilGrids v2.0"
-
-            };
+                Console.WriteLine("Erro SoilGrids: " + ex.Message);
+                return null;
+            }
         }
     }
 }
