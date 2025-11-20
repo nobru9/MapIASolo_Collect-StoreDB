@@ -7,7 +7,7 @@ class Program
     {
         Console.WriteLine("Coletando dados de solo...");
 
-        var soilGrids = new SoilGridsService();
+        //var soilGrids = new SoilGridsService();
         var openLand = new OpenLandMapService();
         var uploader = new S3Uploader();
 
@@ -26,12 +26,12 @@ class Program
         foreach (var (lat, lon) in coords)
         {
         
-            var sg = await soilGrids.GetSampleAsync(lat, lon);
+            /*var sg = await soilGrids.GetSampleAsync(lat, lon);
             if (sg != null)
             {
                 sg.Source = "SoilGrids";
                 samples.Add(sg);
-            }
+            }*/
 
             var ol = await openLand.GetSampleAsync(lat, lon);
             if (ol != null)
